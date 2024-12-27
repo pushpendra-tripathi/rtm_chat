@@ -31,6 +31,7 @@ else:
 DEFAULT_FROM_EMAIL = os.environ.get("DJANGO_DEFAULT_FROM_EMAIL", None)
 
 INSTALLED_APPS = [
+    "daphne",
     "django.contrib.admin",
     "django.contrib.auth",
     "django.contrib.contenttypes",
@@ -48,6 +49,8 @@ INSTALLED_APPS = [
     "qux.auth",
     "qux.token",
     "apps.gizmo",
+    "channels",
+    "chat",
 ]
 
 MIDDLEWARE = [
@@ -222,3 +225,8 @@ INTERNAL_IPS = [
 
 SITE_HEADER = os.getenv("SITE_HEADER", "Qjango by Qux")
 SITE_TITLE = os.getenv("SITE_TITLE", "Qjango")
+
+
+ASGI_APPLICATION = "project.asgi.application"
+
+CHANNEL_LAYERS = {"default": {"BACKEND": "channels.layers.InMemoryChannelLayer"}}

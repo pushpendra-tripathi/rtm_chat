@@ -1,6 +1,6 @@
 from django.conf import settings
 from django.contrib import admin
-from django.urls import path, include
+from django.urls import include, path
 from django.views.generic import TemplateView
 
 from project import errors
@@ -13,10 +13,10 @@ urlpatterns = [
     path("admin/", admin.site.urls),
     path("impersonate/", include("impersonate.urls")),
     path("", include("qux.auth.urls.appurls", namespace="qux_auth")),
-    path("", TemplateView.as_view(template_name="_blank.html"), name="home"),
+    # path("", TemplateView.as_view(template_name="_blank.html"), name="home"),
     path("cover/", TemplateView.as_view(template_name="cover.html"), name="cover"),
     path("google/", TemplateView.as_view(template_name="google.html"), name="google"),
-    path("", include("apps.gizmo.urls.appurls"), name="gizmo"),
+    path("", include("chat.urls")),
 ]
 
 handler400 = "project.errors.error_badrequest"

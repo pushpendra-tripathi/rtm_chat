@@ -1,0 +1,22 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="container">
+    <h1>Chat Rooms</h1>
+    <div class="room-list">
+        {% for room in rooms %}
+            <div class="room-item">
+                <a href="{% url 'chat:room_detail' room.id %}">{{ room.name }}</a>
+            </div>
+        {% endfor %}
+    </div>
+    <div class="create-room">
+        <h2>Create a New Room</h2>
+        <form method="POST" action="{% url 'chat:index' %}">
+            {% csrf_token %}
+            {{ form.as_p }}
+            <button type="submit">Create Room</button>
+        </form>
+    </div>
+</div>
+{% endblock %} 
