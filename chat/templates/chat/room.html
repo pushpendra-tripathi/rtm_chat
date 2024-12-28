@@ -1,52 +1,162 @@
 {% extends 'base.html' %}
 
+{% block title %}{{ room }}{% endblock %}
+
 {% block content %}
-<div class="chat-container">
-    <h1>{{ room.name }}</h1>
-    <div class="messages" id="chat-messages">
+<div class="flex flex-col h-screen">
+    <!-- Chat Header -->
+    <div class="bg-white border-b p-4 flex items-center">
+        <div class="flex-1">
+            <h1 class="text-xl font-bold">{{ room }}</h1>
+            {% if room.chat_type == 'group' %}
+            <p class="text-sm text-gray-600">
+                {{ room.participants.count }} participants
+            </p>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Messages Container -->
+    <div id="chat-messages" class="flex-1 overflow-y-auto p-4 bg-gray-100">
         {% for message in messages %}
-            <div class="message">
-                <strong>{{ message.user.username }}</strong>: {{ message.content }}
+        <div class="mb-4 {% if message.sender == user %}ml-auto{% endif %} max-w-[70%]">
+            <div class="{% if message.sender == user %}bg-green-100{% else %}bg-white{% endif %} rounded-lg p-3 shadow">
+                {% if message.sender != user and room.chat_type == 'group' %}
+                <p class="text-sm font-semibold text-green-600">{{ message.sender.username }}</p>
+                {% endif %}
+                <p class="text-gray-800">{{ message.content }}</p>
+                <div class="flex items-center justify-end space-x-1 text-xs text-gray-500">
+                    <span>{{ message.created_at|time:"H:i" }}</span>
+                    {% if message.sender == user %}
+                    <span class="message-status" data-message-id="{{ message.id }}">
+                        {% if message.receipts.exists %}
+                            {% with latest_status=message.receipts.latest.status %}
+                            {% if latest_status == 'read' %}
+                                <i class="fas fa-check-double text-blue-500"></i>
+                            {% elif latest_status == 'delivered' %}
+                                <i class="fas fa-check-double"></i>
+                            {% else %}
+                                <i class="fas fa-check"></i>
+                            {% endif %}
+                            {% endwith %}
+                        {% else %}
+                            <i class="fas fa-check"></i>
+                        {% endif %}
+                    </span>
+                    {% endif %}
+                </div>
             </div>
+        </div>
         {% endfor %}
     </div>
-    <div class="message-input">
-        <input type="text" id="chat-message-input" placeholder="Type your message...">
-        <button id="chat-message-submit">Send</button>
+
+    <!-- Message Input -->
+    <div class="bg-white border-t p-4">
+        <form id="chat-form" class="flex space-x-2">
+            <input type="text" id="chat-message-input" 
+                   class="flex-1 border rounded-lg px-4 py-2 focus:outline-none focus:border-green-500"
+                   placeholder="Type a message...">
+            <button type="submit" class="bg-green-600 text-white px-6 py-2 rounded-lg hover:bg-green-700">
+                Send
+            </button>
+        </form>
     </div>
 </div>
+{% endblock %}
 
+{% block extra_js %}
 <script>
-    const roomName = '{{ room.name }}';
+    const roomId = {{ room.id }};
     const chatSocket = new WebSocket(
-        'ws://' + window.location.host + '/ws/chat/' + roomName + '/'
+        'ws://' + window.location.host + '/ws/chat/' + roomId + '/'
     );
+
+    const messageContainer = document.getElementById('chat-messages');
+    const messageForm = document.getElementById('chat-form');
+    const messageInput = document.getElementById('chat-message-input');
+
+    // Scroll to bottom on load
+    messageContainer.scrollTop = messageContainer.scrollHeight;
 
     chatSocket.onmessage = function(e) {
         const data = JSON.parse(e.data);
-        const messages = document.getElementById('chat-messages');
-        messages.innerHTML += '<div class="message"><strong>' + data.username + '</strong>: ' + data.message + '</div>';
-        messages.scrollTop = messages.scrollHeight;
-    };
-
-    chatSocket.onclose = function(e) {
-        console.error('Chat socket closed unexpectedly');
-    };
-
-    document.querySelector('#chat-message-input').focus();
-    document.querySelector('#chat-message-input').onkeyup = function(e) {
-        if (e.keyCode === 13) {
-            document.querySelector('#chat-message-submit').click();
+        
+        if (data.type === 'chat_message') {
+            appendMessage(data);
+        } else if (data.type === 'status_update') {
+            updateMessageStatus(data);
         }
     };
 
-    document.querySelector('#chat-message-submit').onclick = function(e) {
-        const messageInputDom = document.querySelector('#chat-message-input');
-        const message = messageInputDom.value;
-        chatSocket.send(JSON.stringify({
-            'message': message
-        }));
-        messageInputDom.value = '';
-    };
+    function appendMessage(data) {
+        const isOwnMessage = data.sender_id === {{ user.id }};
+        const messageDiv = document.createElement('div');
+        messageDiv.className = `mb-4 ${isOwnMessage ? 'ml-auto' : ''} max-w-[70%]`;
+        
+        messageDiv.innerHTML = `
+            <div class="${isOwnMessage ? 'bg-green-100' : 'bg-white'} rounded-lg p-3 shadow">
+                <p class="text-gray-800">${data.message}</p>
+                <div class="flex items-center justify-end space-x-1 text-xs text-gray-500">
+                    <span>${new Date().toLocaleTimeString('en-US', {hour: '2-digit', minute:'2-digit'})}</span>
+                    ${isOwnMessage ? `
+                    <span class="message-status" data-message-id="${data.message_id}">
+                        <i class="fas fa-check"></i>
+                    </span>
+                    ` : ''}
+                </div>
+            </div>
+        `;
+        
+        messageContainer.appendChild(messageDiv);
+        messageContainer.scrollTop = messageContainer.scrollHeight;
+    }
+
+    function updateMessageStatus(data) {
+        const statusSpan = document.querySelector(`.message-status[data-message-id="${data.message_id}"]`);
+        if (statusSpan) {
+            let icon = '';
+            switch (data.status) {
+                case 'read':
+                    icon = '<i class="fas fa-check-double text-blue-500"></i>';
+                    break;
+                case 'delivered':
+                    icon = '<i class="fas fa-check-double"></i>';
+                    break;
+                default:
+                    icon = '<i class="fas fa-check"></i>';
+            }
+            statusSpan.innerHTML = icon;
+        }
+    }
+
+    messageForm.addEventListener('submit', function(e) {
+        e.preventDefault();
+        const message = messageInput.value.trim();
+        if (message) {
+            chatSocket.send(JSON.stringify({
+                'type': 'message',
+                'message': message
+            }));
+            messageInput.value = '';
+        }
+    });
+
+    // Update message status when messages are visible
+    const observer = new IntersectionObserver((entries) => {
+        entries.forEach(entry => {
+            if (entry.isIntersecting) {
+                const messageId = entry.target.querySelector('.message-status')?.dataset.messageId;
+                if (messageId) {
+                    chatSocket.send(JSON.stringify({
+                        'type': 'status_update',
+                        'message_id': messageId,
+                        'status': 'read'
+                    }));
+                }
+            }
+        });
+    });
+
+    document.querySelectorAll('.message').forEach(message => observer.observe(message));
 </script>
 {% endblock %} 
