@@ -51,12 +51,20 @@
     <div class="w-2/3 flex flex-col">
         <!-- Chat Header -->
         <div class="bg-white border-b p-4 flex-none">
-            <div class="flex-1">
-                <h1 class="text-xl font-bold">{{ room }}</h1>
+            <div class="flex justify-between items-center">
+                <div>
+                    <h1 class="text-xl font-bold">{{ room }}</h1>
+                    {% if room.chat_type == 'group' %}
+                    <button onclick="showModal('members')" class="text-sm text-gray-600 hover:text-gray-800">
+                        {{ room.participants.count }} participants <i class="fas fa-chevron-right ml-1"></i>
+                    </button>
+                    {% endif %}
+                </div>
                 {% if room.chat_type == 'group' %}
-                <p class="text-sm text-gray-600">
-                    {{ room.participants.count }} participants
-                </p>
+                <button onclick="showModal('members')" 
+                        class="p-2 text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded-full">
+                    <i class="fas fa-users"></i>
+                </button>
                 {% endif %}
             </div>
         </div>
@@ -128,8 +136,11 @@
     </div>
 </div>
 
-<!-- Include the modals from index.html -->
+<!-- Include the modals -->
 {% include "chat/includes/chat_modals.html" %}
+{% if room.chat_type == 'group' %}
+    {% include "chat/includes/members_modal.html" %}
+{% endif %}
 {% endblock %}
 
 {% block extra_js %}
