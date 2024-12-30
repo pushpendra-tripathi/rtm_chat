@@ -76,5 +76,19 @@ class RoomDetailView(LoginRequiredMixin, DetailView):
             .order_by("created_at")[:100]
         )
 
-        context["messages"] = messages
+        # Get all chat rooms for the sidebar
+        chat_rooms = (
+            Room.objects.filter(participants=self.request.user)
+            .annotate(last_message_time=Max("messages__created_at"))
+            .order_by("-last_message_time")
+        )
+
+        context.update(
+            {
+                "messages": messages,
+                "chat_rooms": chat_rooms,
+                "private_chat_form": PrivateChatForm(user=self.request.user),
+                "group_chat_form": GroupChatForm(user=self.request.user),
+            }
+        )
         return context

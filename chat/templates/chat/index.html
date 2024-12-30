@@ -22,7 +22,7 @@
             <a href="{% url 'chat:room' room.id %}" class="block hover:bg-gray-100" data-room-id="{{ room.id }}">
                 <div class="p-4 border-b {% if room == active_room %}bg-gray-100{% endif %}">
                     <div class="flex justify-between items-start room-info">
-                        <div>
+                        <div class="flex-1 min-w-0">
                             <h3 class="font-semibold">{{ room }}</h3>
                             {% with last_message=room.messages.last %}
                             {% if last_message %}
@@ -36,7 +36,7 @@
                             {% endwith %}
                         </div>
                         {% if room.messages.unread.count %}
-                        <span class="unread-badge bg-green-500 text-white rounded-full px-2 py-1 text-xs">
+                        <span class="unread-badge bg-green-500 text-white rounded-full px-2 py-1 text-xs flex-shrink-0">
                             {{ room.messages.unread.count }}
                         </span>
                         {% endif %}
@@ -60,43 +60,8 @@
     </div>
 </div>
 
-<!-- Private Chat Modal -->
-<div id="privateChatModal" class="fixed inset-0 bg-black bg-opacity-50 hidden">
-    <div class="bg-white rounded-lg p-6 w-96 absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2">
-        <h2 class="text-xl font-bold mb-4">New Private Chat</h2>
-        <form method="post" action="{% url 'chat:create_private' %}">
-            {% csrf_token %}
-            {{ private_chat_form.as_p }}
-            <div class="mt-4 flex justify-end space-x-2">
-                <button type="button" onclick="hideModal('privateChat')" class="px-4 py-2 border rounded">
-                    Cancel
-                </button>
-                <button type="submit" class="px-4 py-2 bg-green-600 text-white rounded">
-                    Start Chat
-                </button>
-            </div>
-        </form>
-    </div>
-</div>
-
-<!-- Group Chat Modal -->
-<div id="groupChatModal" class="fixed inset-0 bg-black bg-opacity-50 hidden">
-    <div class="bg-white rounded-lg p-6 w-96 absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2">
-        <h2 class="text-xl font-bold mb-4">New Group Chat</h2>
-        <form method="post" action="{% url 'chat:create_group' %}">
-            {% csrf_token %}
-            {{ group_chat_form.as_p }}
-            <div class="mt-4 flex justify-end space-x-2">
-                <button type="button" onclick="hideModal('groupChat')" class="px-4 py-2 border rounded">
-                    Cancel
-                </button>
-                <button type="submit" class="px-4 py-2 bg-green-600 text-white rounded">
-                    Create Group
-                </button>
-            </div>
-        </form>
-    </div>
-</div>
+<!-- Include the shared modals -->
+{% include "chat/includes/chat_modals.html" %}
 {% endblock %}
 
 {% block extra_js %}
@@ -170,6 +135,18 @@
     // Modal functions
     function showModal(type) {
         document.getElementById(`${type}Modal`).classList.remove('hidden');
+        // Add overlay click to close
+        document.getElementById(`${type}Modal`).addEventListener('click', function(e) {
+            if (e.target === this) {
+                hideModal(type);
+            }
+        });
+        // Add escape key to close
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'Escape') {
+                hideModal(type);
+            }
+        });
     }
 
     function hideModal(type) {

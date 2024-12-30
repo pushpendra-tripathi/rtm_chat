@@ -3,66 +3,137 @@
 {% block title %}{{ room }}{% endblock %}
 
 {% block content %}
-<div class="h-full flex flex-col">
-    <!-- Chat Header -->
-    <div class="bg-white border-b p-4 flex-none">
-        <div class="flex-1">
-            <h1 class="text-xl font-bold">{{ room }}</h1>
-            {% if room.chat_type == 'group' %}
-            <p class="text-sm text-gray-600">
-                {{ room.participants.count }} participants
-            </p>
-            {% endif %}
+<div class="h-full flex">
+    <!-- Chat List Sidebar -->
+    <div class="w-1/3 bg-white border-r flex flex-col">
+        <!-- New Chat Buttons -->
+        <div class="p-4 border-b flex-none">
+            <button onclick="showModal('privateChat')" class="bg-green-600 text-white px-4 py-2 rounded-lg w-full mb-2">
+                New Private Chat
+            </button>
+            <button onclick="showModal('groupChat')" class="bg-green-600 text-white px-4 py-2 rounded-lg w-full">
+                New Group Chat
+            </button>
+        </div>
+
+        <!-- Chat List -->
+        <div class="flex-1 overflow-y-auto">
+            {% for chat_room in chat_rooms %}
+            <a href="{% url 'chat:room' chat_room.id %}" class="block hover:bg-gray-100" data-room-id="{{ chat_room.id }}">
+                <div class="p-4 border-b {% if chat_room == room %}bg-gray-100{% endif %}">
+                    <div class="flex justify-between items-start room-info">
+                        <div class="flex-1 min-w-0">
+                            <h3 class="font-semibold">{{ chat_room }}</h3>
+                            {% with last_message=chat_room.messages.last %}
+                            {% if last_message %}
+                            <p class="text-sm text-gray-600 truncate last-message">
+                                {{ last_message.content }}
+                            </p>
+                            <p class="text-xs text-gray-500 message-time">
+                                {{ last_message.created_at|timesince }} ago
+                            </p>
+                            {% endif %}
+                            {% endwith %}
+                        </div>
+                        {% if chat_room.messages.unread.count %}
+                        <span class="unread-badge bg-green-500 text-white rounded-full px-2 py-1 text-xs flex-shrink-0">
+                            {{ chat_room.messages.unread.count }}
+                        </span>
+                        {% endif %}
+                    </div>
+                </div>
+            </a>
+            {% endfor %}
         </div>
     </div>
 
-    <!-- Messages Container -->
-    <div id="chat-messages" class="flex-1 overflow-y-auto p-4 bg-gray-100">
-        {% for message in messages %}
-        <div class="mb-4 {% if message.sender == user %}ml-auto{% endif %} max-w-[70%] message-container"
-             data-message-id="{{ message.id }}"
-             data-sender="{{ message.sender.id }}">
-            <div class="{% if message.sender == user %}bg-green-100{% else %}bg-white{% endif %} rounded-lg p-3 shadow">
+    <!-- Chat Area -->
+    <div class="w-2/3 flex flex-col">
+        <!-- Chat Header -->
+        <div class="bg-white border-b p-4 flex-none">
+            <div class="flex-1">
+                <h1 class="text-xl font-bold">{{ room }}</h1>
                 {% if room.chat_type == 'group' %}
-                <p class="text-sm font-semibold text-green-600">{{ message.sender.username }}</p>
+                <p class="text-sm text-gray-600">
+                    {{ room.participants.count }} participants
+                </p>
                 {% endif %}
-                <p class="text-gray-800">{{ message.content }}</p>
-                <div class="flex items-center justify-end space-x-1 text-xs text-gray-500">
-                    <span>{{ message.created_at|time:"H:i" }}</span>
-                    {% if message.sender == user %}
-                    <span class="message-status" data-message-id="{{ message.id }}">
-                        {% with status=message.get_status_display %}
-                            {% if status == 'read' %}
-                                <i class="fas fa-check-double text-blue-500"></i>
-                            {% elif status == 'delivered' %}
-                                <i class="fas fa-check-double"></i>
-                            {% else %}
-                                <i class="fas fa-check"></i>
-                            {% endif %}
-                        {% endwith %}
-                    </span>
-                    {% endif %}
-                </div>
             </div>
         </div>
-        {% endfor %}
-    </div>
 
-    <!-- Message Input -->
-    <div class="bg-white border-t p-4 flex-none">
-        <form id="chat-form" class="flex space-x-2">
-            <input type="text" id="chat-message-input" 
-                   class="flex-1 border rounded-lg px-4 py-2 focus:outline-none focus:border-green-500"
-                   placeholder="Type a message...">
-            <button type="submit" class="bg-green-600 text-white px-6 py-2 rounded-lg hover:bg-green-700">
-                Send
-            </button>
-        </form>
+        <!-- Messages Container -->
+        <div id="chat-messages" class="flex-1 overflow-y-auto p-4 bg-gray-100">
+            {% for message in messages %}
+            <div class="flex {% if message.sender == user %}justify-end{% endif %} mb-4 message-container"
+                 data-message-id="{{ message.id }}"
+                 data-sender="{{ message.sender.id }}">
+                <!-- Sender Avatar (for received messages) -->
+                {% if message.sender != user %}
+                <div class="flex-none flex flex-col items-center mr-2">
+                    <div class="w-8 h-8 rounded-full bg-gray-300 flex items-center justify-center">
+                        {{ message.sender.username|first|upper }}
+                    </div>
+                </div>
+                {% endif %}
+
+                <!-- Message Content -->
+                <div class="flex {% if message.sender == user %}justify-end{% endif %} w-full">
+                    <div class="max-w-md">
+                        <div class="{% if message.sender == user %}bg-green-100 rounded-l-2xl rounded-br-2xl{% else %}bg-white rounded-r-2xl rounded-bl-2xl{% endif %} p-3 shadow-sm">
+                            <p class="text-gray-800 whitespace-pre-wrap break-words">{{ message.content }}</p>
+                            <div class="flex items-center justify-end space-x-1 text-xs text-gray-500 mt-1">
+                                <span>{{ message.created_at|time:"H:i" }}</span>
+                                {% if message.sender == user %}
+                                <span class="message-status" data-message-id="{{ message.id }}">
+                                    {% with status=message.get_status_display %}
+                                        {% if status == 'read' %}
+                                            <i class="fas fa-check-double text-blue-500"></i>
+                                        {% elif status == 'delivered' %}
+                                            <i class="fas fa-check-double"></i>
+                                        {% else %}
+                                            <i class="fas fa-check"></i>
+                                        {% endif %}
+                                    {% endwith %}
+                                </span>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Sender Avatar (for sent messages) -->
+                {% if message.sender == user %}
+                <div class="flex-none flex flex-col items-center ml-2">
+                    <div class="w-8 h-8 rounded-full bg-green-500 text-white flex items-center justify-center">
+                        {{ user.username|first|upper }}
+                    </div>
+                </div>
+                {% endif %}
+            </div>
+            {% endfor %}
+        </div>
+
+        <!-- Message Input -->
+        <div class="bg-white border-t p-4 flex-none">
+            <form id="chat-form" class="flex space-x-2">
+                <input type="text" id="chat-message-input" 
+                       class="flex-1 border rounded-lg px-4 py-2 focus:outline-none focus:border-green-500"
+                       placeholder="Type a message..."
+                       autofocus>
+                <button type="submit" class="bg-green-600 text-white px-6 py-2 rounded-lg hover:bg-green-700">
+                    Send
+                </button>
+            </form>
+        </div>
     </div>
 </div>
+
+<!-- Include the modals from index.html -->
+{% include "chat/includes/chat_modals.html" %}
 {% endblock %}
 
 {% block extra_js %}
+{{ block.super }}
 <script>
     const roomId = {{ room.id }};
     const chatSocket = new WebSocket(
@@ -148,25 +219,44 @@
     function appendMessage(data) {
         const isOwnMessage = data.sender_id === {{ user.id }};
         const messageDiv = document.createElement('div');
-        messageDiv.className = `mb-4 ${isOwnMessage ? 'ml-auto' : ''} max-w-[70%] message-container`;
+        messageDiv.className = `flex ${isOwnMessage ? 'justify-end' : ''} mb-4 message-container`;
         messageDiv.dataset.messageId = data.message_id;
         messageDiv.dataset.sender = data.sender_id;
         
+        const senderInitial = isOwnMessage ? '{{ user.username|first|upper }}' : data.sender_name[0].toUpperCase();
+        
         messageDiv.innerHTML = `
-            <div class="${isOwnMessage ? 'bg-green-100' : 'bg-white'} rounded-lg p-3 shadow">
-                ${data.sender_name && '{{ room.chat_type }}' === 'group' 
-                    ? `<p class="text-sm font-semibold text-green-600">${data.sender_name}</p>` 
-                    : ''}
-                <p class="text-gray-800">${data.message}</p>
-                <div class="flex items-center justify-end space-x-1 text-xs text-gray-500">
-                    <span>${new Date().toLocaleTimeString('en-US', {hour: '2-digit', minute:'2-digit'})}</span>
-                    ${isOwnMessage ? `
-                    <span class="message-status" data-message-id="${data.message_id}">
-                        <i class="fas fa-check"></i>
-                    </span>
-                    ` : ''}
+            ${!isOwnMessage ? `
+            <div class="flex-none flex flex-col items-center mr-2">
+                <div class="w-8 h-8 rounded-full bg-gray-300 flex items-center justify-center">
+                    ${senderInitial}
                 </div>
             </div>
+            ` : ''}
+            
+            <div class="flex ${isOwnMessage ? 'justify-end' : ''} w-full">
+                <div class="max-w-md">
+                    <div class="${isOwnMessage ? 'bg-green-100 rounded-l-2xl rounded-br-2xl' : 'bg-white rounded-r-2xl rounded-bl-2xl'} p-3 shadow-sm">
+                        <p class="text-gray-800 whitespace-pre-wrap break-words">${data.message}</p>
+                        <div class="flex items-center justify-end space-x-1 text-xs text-gray-500 mt-1">
+                            <span>${new Date().toLocaleTimeString('en-US', {hour: '2-digit', minute:'2-digit'})}</span>
+                            ${isOwnMessage ? `
+                            <span class="message-status" data-message-id="${data.message_id}">
+                                <i class="fas fa-check"></i>
+                            </span>
+                            ` : ''}
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            ${isOwnMessage ? `
+            <div class="flex-none flex flex-col items-center ml-2">
+                <div class="w-8 h-8 rounded-full bg-green-500 text-white flex items-center justify-center">
+                    ${senderInitial}
+                </div>
+            </div>
+            ` : ''}
         `;
         
         // Append at the bottom of the container
@@ -200,6 +290,7 @@
                 'sender_name': '{{ user.username }}'
             }));
             messageInput.value = '';
+            messageInput.focus();
         }
     });
 
@@ -231,5 +322,26 @@
             }
         }
     });
+
+    // Modal functions
+    function showModal(type) {
+        document.getElementById(`${type}Modal`).classList.remove('hidden');
+        // Add overlay click to close
+        document.getElementById(`${type}Modal`).addEventListener('click', function(e) {
+            if (e.target === this) {
+                hideModal(type);
+            }
+        });
+        // Add escape key to close
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'Escape') {
+                hideModal(type);
+            }
+        });
+    }
+
+    function hideModal(type) {
+        document.getElementById(`${type}Modal`).classList.add('hidden');
+    }
 </script>
 {% endblock %} 
