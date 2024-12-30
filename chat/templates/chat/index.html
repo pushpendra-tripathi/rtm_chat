@@ -3,11 +3,11 @@
 {% block title %}Chats{% endblock %}
 
 {% block content %}
-<div class="flex h-screen">
+<div class="h-full flex">
     <!-- Sidebar -->
-    <div class="w-1/3 bg-white border-r">
+    <div class="w-1/3 bg-white border-r flex flex-col">
         <!-- New Chat Buttons -->
-        <div class="p-4 border-b">
+        <div class="p-4 border-b flex-none">
             <button onclick="showModal('privateChat')" class="bg-green-600 text-white px-4 py-2 rounded-lg w-full mb-2">
                 New Private Chat
             </button>
@@ -17,26 +17,26 @@
         </div>
 
         <!-- Chat List -->
-        <div class="overflow-y-auto">
+        <div class="flex-1 overflow-y-auto">
             {% for room in rooms %}
-            <a href="{% url 'chat:room' room.id %}" class="block hover:bg-gray-100">
+            <a href="{% url 'chat:room' room.id %}" class="block hover:bg-gray-100" data-room-id="{{ room.id }}">
                 <div class="p-4 border-b {% if room == active_room %}bg-gray-100{% endif %}">
-                    <div class="flex justify-between items-start">
+                    <div class="flex justify-between items-start room-info">
                         <div>
                             <h3 class="font-semibold">{{ room }}</h3>
                             {% with last_message=room.messages.last %}
                             {% if last_message %}
-                            <p class="text-sm text-gray-600 truncate">
+                            <p class="text-sm text-gray-600 truncate last-message">
                                 {{ last_message.content }}
                             </p>
-                            <p class="text-xs text-gray-500">
+                            <p class="text-xs text-gray-500 message-time">
                                 {{ last_message.created_at|timesince }} ago
                             </p>
                             {% endif %}
                             {% endwith %}
                         </div>
                         {% if room.messages.unread.count %}
-                        <span class="bg-green-500 text-white rounded-full px-2 py-1 text-xs">
+                        <span class="unread-badge bg-green-500 text-white rounded-full px-2 py-1 text-xs">
                             {{ room.messages.unread.count }}
                         </span>
                         {% endif %}
@@ -52,7 +52,7 @@
     </div>
 
     <!-- Main Content -->
-    <div class="w-2/3 bg-gray-50 p-4 flex items-center justify-center">
+    <div class="w-2/3 bg-gray-50 flex items-center justify-center">
         <div class="text-center text-gray-500">
             <i class="fas fa-comments text-6xl mb-4"></i>
             <p>Select a chat to start messaging</p>
@@ -100,13 +100,80 @@
 {% endblock %}
 
 {% block extra_js %}
+{{ block.super }}
 <script>
-function showModal(type) {
-    document.getElementById(`${type}Modal`).classList.remove('hidden');
-}
+    // Connect to WebSocket for notifications
+    const notificationSocket = new WebSocket(
+        'ws://' + window.location.host + '/ws/notifications/'
+    );
 
-function hideModal(type) {
-    document.getElementById(`${type}Modal`).classList.add('hidden');
-}
+    // Keep track of unread messages count per room
+    const unreadCounts = {};
+
+    notificationSocket.onmessage = function(e) {
+        const data = JSON.parse(e.data);
+        if (data.type === 'notify_message') {
+            updateRoomWithNewMessage(data);
+        }
+    };
+
+    function updateRoomWithNewMessage(data) {
+        const roomElement = document.querySelector(`[data-room-id="${data.room_id}"]`);
+        if (roomElement) {
+            // Update last message
+            const lastMessageElement = roomElement.querySelector('.last-message');
+            if (lastMessageElement) {
+                lastMessageElement.textContent = data.message;
+            }
+
+            // Update timestamp
+            const timestampElement = roomElement.querySelector('.message-time');
+            if (timestampElement) {
+                timestampElement.textContent = 'just now';
+            }
+
+            // Update or create unread count badge
+            let unreadBadge = roomElement.querySelector('.unread-badge');
+            if (!unreadBadge) {
+                unreadBadge = document.createElement('span');
+                unreadBadge.className = 'unread-badge bg-green-500 text-white rounded-full px-2 py-1 text-xs';
+                roomElement.querySelector('.room-info').appendChild(unreadBadge);
+            }
+            
+            unreadCounts[data.room_id] = (unreadCounts[data.room_id] || 0) + 1;
+            unreadBadge.textContent = unreadCounts[data.room_id];
+
+            // Move room to top of list
+            const roomsList = roomElement.parentElement;
+            roomsList.insertBefore(roomElement, roomsList.firstChild);
+
+            // Show notification if browser supports it
+            if ("Notification" in window) {
+                if (Notification.permission === "granted") {
+                    new Notification(`New message in ${data.room_name}`, {
+                        body: `${data.sender_name}: ${data.message}`,
+                    });
+                } else if (Notification.permission !== "denied") {
+                    Notification.requestPermission();
+                }
+            }
+        }
+    }
+
+    // Request notification permission on page load
+    document.addEventListener('DOMContentLoaded', function() {
+        if ("Notification" in window && Notification.permission !== "denied") {
+            Notification.requestPermission();
+        }
+    });
+
+    // Modal functions
+    function showModal(type) {
+        document.getElementById(`${type}Modal`).classList.remove('hidden');
+    }
+
+    function hideModal(type) {
+        document.getElementById(`${type}Modal`).classList.add('hidden');
+    }
 </script>
 {% endblock %} 

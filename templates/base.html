@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" class="h-full">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -8,8 +8,8 @@
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     {% block extra_css %}{% endblock %}
 </head>
-<body class="bg-gray-100">
-    <nav class="bg-green-600 p-4">
+<body class="h-full flex flex-col">
+    <nav class="bg-green-600 p-4 flex-none">
         <div class="container mx-auto flex justify-between items-center">
             <a href="{% url 'chat:index' %}" class="text-white text-xl font-bold">Chat App</a>
             {% if user.is_authenticated %}
@@ -23,7 +23,7 @@
         </div>
     </nav>
 
-    <main class="container mx-auto p-4">
+    <main class="flex-1 overflow-hidden">
         {% block content %}{% endblock %}
     </main>
 

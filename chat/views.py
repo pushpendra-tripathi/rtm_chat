@@ -64,7 +64,7 @@ class RoomDetailView(LoginRequiredMixin, DetailView):
         context = super().get_context_data(**kwargs)
         room = self.get_object()
 
-        # Get messages with their receipts
+        # Get messages with their receipts, ordered by created_at ascending
         messages = (
             Message.objects.filter(room=room)
             .prefetch_related(
@@ -73,21 +73,8 @@ class RoomDetailView(LoginRequiredMixin, DetailView):
                     queryset=MessageReceipt.objects.filter(user=self.request.user),
                 )
             )
-            .order_by("-created_at")
+            .order_by("created_at")[:100]
         )
-
-        # Mark messages as read
-        unread_messages = messages.filter(
-            sender=self.request.user,
-            receipts__status__in=[MessageStatus.SENT, MessageStatus.DELIVERED],
-        )[:100]
-
-        for message in unread_messages:
-            MessageReceipt.objects.update_or_create(
-                message=message,
-                user=self.request.user,
-                defaults={"status": MessageStatus.READ},
-            )
 
         context["messages"] = messages
         return context

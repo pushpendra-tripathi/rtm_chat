@@ -3,9 +3,9 @@
 {% block title %}{{ room }}{% endblock %}
 
 {% block content %}
-<div class="flex flex-col h-screen">
+<div class="h-full flex flex-col">
     <!-- Chat Header -->
-    <div class="bg-white border-b p-4 flex items-center">
+    <div class="bg-white border-b p-4 flex-none">
         <div class="flex-1">
             <h1 class="text-xl font-bold">{{ room }}</h1>
             {% if room.chat_type == 'group' %}
@@ -19,9 +19,11 @@
     <!-- Messages Container -->
     <div id="chat-messages" class="flex-1 overflow-y-auto p-4 bg-gray-100">
         {% for message in messages %}
-        <div class="mb-4 {% if message.sender == user %}ml-auto{% endif %} max-w-[70%]">
+        <div class="mb-4 {% if message.sender == user %}ml-auto{% endif %} max-w-[70%] message-container"
+             data-message-id="{{ message.id }}"
+             data-sender="{{ message.sender.id }}">
             <div class="{% if message.sender == user %}bg-green-100{% else %}bg-white{% endif %} rounded-lg p-3 shadow">
-                {% if message.sender != user and room.chat_type == 'group' %}
+                {% if room.chat_type == 'group' %}
                 <p class="text-sm font-semibold text-green-600">{{ message.sender.username }}</p>
                 {% endif %}
                 <p class="text-gray-800">{{ message.content }}</p>
@@ -29,19 +31,15 @@
                     <span>{{ message.created_at|time:"H:i" }}</span>
                     {% if message.sender == user %}
                     <span class="message-status" data-message-id="{{ message.id }}">
-                        {% if message.receipts.exists %}
-                            {% with latest_status=message.receipts.latest.status %}
-                            {% if latest_status == 'read' %}
+                        {% with status=message.get_status_display %}
+                            {% if status == 'read' %}
                                 <i class="fas fa-check-double text-blue-500"></i>
-                            {% elif latest_status == 'delivered' %}
+                            {% elif status == 'delivered' %}
                                 <i class="fas fa-check-double"></i>
                             {% else %}
                                 <i class="fas fa-check"></i>
                             {% endif %}
-                            {% endwith %}
-                        {% else %}
-                            <i class="fas fa-check"></i>
-                        {% endif %}
+                        {% endwith %}
                     </span>
                     {% endif %}
                 </div>
@@ -51,7 +49,7 @@
     </div>
 
     <!-- Message Input -->
-    <div class="bg-white border-t p-4">
+    <div class="bg-white border-t p-4 flex-none">
         <form id="chat-form" class="flex space-x-2">
             <input type="text" id="chat-message-input" 
                    class="flex-1 border rounded-lg px-4 py-2 focus:outline-none focus:border-green-500"
@@ -88,13 +86,77 @@
         }
     };
 
+    chatSocket.onopen = function(e) {
+        console.log('WebSocket connection established');
+        // You could add online status indicator here
+    };
+
+    chatSocket.onclose = function(e) {
+        console.log('WebSocket connection closed');
+        // You could add offline status indicator here
+        
+        // Optionally, try to reconnect
+        setTimeout(function() {
+            console.log('Attempting to reconnect...');
+            chatSocket = new WebSocket(
+                'ws://' + window.location.host + '/ws/chat/' + roomId + '/'
+            );
+        }, 3000);
+    };
+
+    // Function to mark messages as read when they become visible
+    function setupMessageObserver() {
+        const observer = new IntersectionObserver((entries) => {
+            entries.forEach(entry => {
+                if (entry.isIntersecting) {
+                    const messageDiv = entry.target;
+                    const messageId = messageDiv.dataset.messageId;
+                    const isSender = messageDiv.dataset.sender === '{{ user.id }}';
+                    const isUnread = !messageDiv.classList.contains('message-read');
+                    
+                    // Only mark as read if we're not the sender and message is unread
+                    if (messageId && !isSender && isUnread) {
+                        chatSocket.send(JSON.stringify({
+                            'type': 'status_update',
+                            'message_id': messageId,
+                            'status': 'read'
+                        }));
+                        // Mark as read locally
+                        messageDiv.classList.add('message-read');
+                        // Remove from observer after marking as read
+                        observer.unobserve(messageDiv);
+                    }
+                }
+            });
+        }, {
+            threshold: 0.5 // Message is at least 50% visible
+        });
+
+        // Only observe unread messages that we didn't send
+        document.querySelectorAll('.message-container').forEach(messageDiv => {
+            const isSender = messageDiv.dataset.sender === '{{ user.id }}';
+            const isUnread = !messageDiv.classList.contains('message-read');
+            if (!isSender && isUnread) {
+                observer.observe(messageDiv);
+            }
+        });
+
+        return observer;
+    }
+
+    // Update the message HTML structure
     function appendMessage(data) {
         const isOwnMessage = data.sender_id === {{ user.id }};
         const messageDiv = document.createElement('div');
-        messageDiv.className = `mb-4 ${isOwnMessage ? 'ml-auto' : ''} max-w-[70%]`;
+        messageDiv.className = `mb-4 ${isOwnMessage ? 'ml-auto' : ''} max-w-[70%] message-container`;
+        messageDiv.dataset.messageId = data.message_id;
+        messageDiv.dataset.sender = data.sender_id;
         
         messageDiv.innerHTML = `
             <div class="${isOwnMessage ? 'bg-green-100' : 'bg-white'} rounded-lg p-3 shadow">
+                ${data.sender_name && '{{ room.chat_type }}' === 'group' 
+                    ? `<p class="text-sm font-semibold text-green-600">${data.sender_name}</p>` 
+                    : ''}
                 <p class="text-gray-800">${data.message}</p>
                 <div class="flex items-center justify-end space-x-1 text-xs text-gray-500">
                     <span>${new Date().toLocaleTimeString('en-US', {hour: '2-digit', minute:'2-digit'})}</span>
@@ -107,9 +169,39 @@
             </div>
         `;
         
+        // Append at the bottom of the container
         messageContainer.appendChild(messageDiv);
-        messageContainer.scrollTop = messageContainer.scrollHeight;
+        
+        // Scroll to the new message
+        messageDiv.scrollIntoView({ behavior: 'smooth', block: 'end' });
+
+        // Mark as delivered if we're receiving the message and we're online
+        if (!isOwnMessage && chatSocket.readyState === WebSocket.OPEN) {
+            chatSocket.send(JSON.stringify({
+                'type': 'status_update',
+                'message_id': data.message_id,
+                'status': 'delivered'
+            }));
+            // Start observing the new message for read status
+            messageObserver.observe(messageDiv);
+        }
     }
+
+    // Initialize the observer
+    const messageObserver = setupMessageObserver();
+
+    messageForm.addEventListener('submit', function(e) {
+        e.preventDefault();
+        const message = messageInput.value.trim();
+        if (message) {
+            chatSocket.send(JSON.stringify({
+                'type': 'message',
+                'message': message,
+                'sender_name': '{{ user.username }}'
+            }));
+            messageInput.value = '';
+        }
+    });
 
     function updateMessageStatus(data) {
         const statusSpan = document.querySelector(`.message-status[data-message-id="${data.message_id}"]`);
@@ -129,34 +221,15 @@
         }
     }
 
-    messageForm.addEventListener('submit', function(e) {
-        e.preventDefault();
-        const message = messageInput.value.trim();
-        if (message) {
-            chatSocket.send(JSON.stringify({
-                'type': 'message',
-                'message': message
-            }));
-            messageInput.value = '';
+    // Update the message container to mark initially read messages
+    document.querySelectorAll('.message-container').forEach(messageDiv => {
+        const isSender = messageDiv.dataset.sender === '{{ user.id }}';
+        if (!isSender) {
+            const statusSpan = messageDiv.querySelector('.message-status');
+            if (statusSpan && statusSpan.querySelector('.text-blue-500')) {
+                messageDiv.classList.add('message-read');
+            }
         }
     });
-
-    // Update message status when messages are visible
-    const observer = new IntersectionObserver((entries) => {
-        entries.forEach(entry => {
-            if (entry.isIntersecting) {
-                const messageId = entry.target.querySelector('.message-status')?.dataset.messageId;
-                if (messageId) {
-                    chatSocket.send(JSON.stringify({
-                        'type': 'status_update',
-                        'message_id': messageId,
-                        'status': 'read'
-                    }));
-                }
-            }
-        });
-    });
-
-    document.querySelectorAll('.message').forEach(message => observer.observe(message));
 </script>
 {% endblock %} 
