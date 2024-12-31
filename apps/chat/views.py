@@ -17,7 +17,7 @@ class RoomListView(LoginRequiredMixin, ListView):
     def get_queryset(self):
         return (
             Room.objects.filter(participants=self.request.user)
-            .annotate(last_message_time=Max("messages__created_at"))
+            .annotate(last_message_time=Max("messages__dtm_created"))
             .order_by("-last_message_time")
         )
 
@@ -64,7 +64,7 @@ class RoomDetailView(LoginRequiredMixin, DetailView):
         context = super().get_context_data(**kwargs)
         room = self.get_object()
 
-        # Get messages with their receipts, ordered by created_at ascending
+        # Get messages with their receipts, ordered by dtm_created ascending
         messages = (
             Message.objects.filter(room=room)
             .prefetch_related(
@@ -73,13 +73,13 @@ class RoomDetailView(LoginRequiredMixin, DetailView):
                     queryset=MessageReceipt.objects.filter(user=self.request.user),
                 )
             )
-            .order_by("created_at")[:100]
+            .order_by("dtm_created")[:100]
         )
 
         # Get all chat rooms for the sidebar
         chat_rooms = (
             Room.objects.filter(participants=self.request.user)
-            .annotate(last_message_time=Max("messages__created_at"))
+            .annotate(last_message_time=Max("messages__dtm_created"))
             .order_by("-last_message_time")
         )
 

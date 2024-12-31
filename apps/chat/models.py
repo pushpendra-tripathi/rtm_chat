@@ -2,6 +2,8 @@ from django.contrib.auth import get_user_model
 from django.db import models
 from django.utils.translation import gettext_lazy as _
 
+from qux.models import QuxModel
+
 User = get_user_model()
 
 
@@ -16,7 +18,7 @@ class MessageStatus(models.TextChoices):
     READ = "read", _("Read")
 
 
-class Room(models.Model):
+class Room(QuxModel):
     name = models.CharField(max_length=255, blank=True)
     chat_type = models.CharField(
         max_length=20, choices=ChatType.choices, default=ChatType.PRIVATE
@@ -25,8 +27,6 @@ class Room(models.Model):
         User, on_delete=models.CASCADE, related_name="created_rooms"
     )
     participants = models.ManyToManyField(User, related_name="rooms")
-    created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
 
     def get_room_name(self):
         """Sync method to get room name"""
@@ -40,16 +40,15 @@ class Room(models.Model):
         return self.get_room_name()
 
 
-class Message(models.Model):
+class Message(QuxModel):
     room = models.ForeignKey(Room, on_delete=models.CASCADE, related_name="messages")
     sender = models.ForeignKey(
         User, on_delete=models.CASCADE, related_name="sent_messages"
     )
     content = models.TextField()
-    created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
-        ordering = ["created_at"]
+        ordering = ["dtm_created"]
 
     def get_status_for_user(self, user):
         """Get the message status for a specific user"""

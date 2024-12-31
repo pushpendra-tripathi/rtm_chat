@@ -90,7 +90,7 @@ class ChatConsumer(AsyncWebsocketConsumer):
                 "message_id": saved_message.id,
                 "sender_id": self.user.id,
                 "sender_name": self.user.username,
-                "timestamp": saved_message.created_at.isoformat(),
+                "timestamp": saved_message.dtm_created.isoformat(),
             }
             await self.channel_layer.group_send(self.room_group_name, message_data)
 
@@ -103,7 +103,7 @@ class ChatConsumer(AsyncWebsocketConsumer):
                 "room_name": room_name,
                 "message": message[:50] + "..." if len(message) > 50 else message,
                 "sender_name": self.user.username,
-                "timestamp": saved_message.created_at.isoformat(),
+                "timestamp": saved_message.dtm_created.isoformat(),
             }
 
             for participant in await self.get_participants():

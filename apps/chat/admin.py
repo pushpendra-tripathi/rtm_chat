@@ -13,13 +13,13 @@ class RoomAdmin(admin.ModelAdmin):
         "creator",
         "participant_count",
         "message_count",
-        "created_at",
+        "dtm_created",
     ]
-    list_filter = ["chat_type", "created_at"]
+    list_filter = ["chat_type", "dtm_created"]
     search_fields = ["name", "creator__username", "participants__username"]
-    readonly_fields = ["created_at", "updated_at"]
+    readonly_fields = ["dtm_created", "dtm_updated"]
     filter_horizontal = ["participants"]
-    date_hierarchy = "created_at"
+    date_hierarchy = "dtm_created"
 
     def get_queryset(self, request):
         return (
@@ -57,12 +57,12 @@ class MessageAdmin(admin.ModelAdmin):
         "room_display",
         "sender",
         "status_display",
-        "created_at",
+        "dtm_created",
     ]
-    list_filter = ["created_at", "room__chat_type"]
+    list_filter = ["dtm_created", "room__chat_type"]
     search_fields = ["content", "sender__username", "room__name"]
-    readonly_fields = ["created_at", "status_display"]
-    date_hierarchy = "created_at"
+    readonly_fields = ["dtm_created", "status_display"]
+    date_hierarchy = "dtm_created"
     raw_id_fields = ["room", "sender"]
 
     def truncated_content(self, obj):

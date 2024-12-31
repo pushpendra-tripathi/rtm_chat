@@ -30,7 +30,7 @@
                                 {{ last_message.content }}
                             </p>
                             <p class="text-xs text-gray-500 message-time">
-                                {{ last_message.created_at|timesince }} ago
+                                {{ last_message.dtm_created|timesince }} ago
                             </p>
                             {% endif %}
                             {% endwith %}
@@ -90,7 +90,7 @@
                         <div class="{% if message.sender == user %}bg-green-100 rounded-l-2xl rounded-br-2xl{% else %}bg-white rounded-r-2xl rounded-bl-2xl{% endif %} p-3 shadow-sm">
                             <p class="text-gray-800 whitespace-pre-wrap break-words">{{ message.content }}</p>
                             <div class="flex items-center justify-end space-x-1 text-xs text-gray-500 mt-1">
-                                <span>{{ message.created_at|time:"H:i" }}</span>
+                                <span>{{ message.dtm_created|time:"H:i" }}</span>
                                 {% if message.sender == user %}
                                 <span class="message-status" data-message-id="{{ message.id }}">
                                     {% with status=message.get_status_display %}

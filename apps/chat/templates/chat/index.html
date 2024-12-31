@@ -30,7 +30,7 @@
                                 {{ last_message.content }}
                             </p>
                             <p class="text-xs text-gray-500 message-time">
-                                {{ last_message.created_at|timesince }} ago
+                                {{ last_message.dtm_created|timesince }} ago
                             </p>
                             {% endif %}
                             {% endwith %}
