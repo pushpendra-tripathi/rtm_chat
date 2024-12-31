@@ -16,7 +16,7 @@ urlpatterns = [
     # path("", TemplateView.as_view(template_name="_blank.html"), name="home"),
     path("cover/", TemplateView.as_view(template_name="cover.html"), name="cover"),
     path("google/", TemplateView.as_view(template_name="google.html"), name="google"),
-    path("", include("chat.urls")),
+    path("", include("apps.chat.urls")),
 ]
 
 handler400 = "project.errors.error_badrequest"

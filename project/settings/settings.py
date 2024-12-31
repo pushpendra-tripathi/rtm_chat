@@ -50,7 +50,7 @@ INSTALLED_APPS = [
     "qux.token",
     "apps.gizmo",
     "channels",
-    "chat",
+    "apps.chat",
 ]
 
 MIDDLEWARE = [
