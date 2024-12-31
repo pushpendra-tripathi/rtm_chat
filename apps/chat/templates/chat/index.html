@@ -67,20 +67,69 @@
 {% block extra_js %}
 {{ block.super }}
 <script>
-    // Connect to WebSocket for notifications
-    const notificationSocket = new WebSocket(
-        'ws://' + window.location.host + '/ws/notifications/'
-    );
+    class NotificationWebSocketManager {
+        constructor() {
+            this.reconnectAttempts = 0;
+            this.maxReconnectAttempts = 5;
+            this.reconnectDelay = 2000;
+            this.connect();
+        }
+
+        connect() {
+            this.ws = new WebSocket(
+                'ws://' + window.location.host + '/ws/notifications/'
+            );
+
+            this.ws.onopen = () => {
+                console.log('Notification WebSocket connected');
+                this.reconnectAttempts = 0;
+                this.reconnectDelay = 2000;
+            };
+
+            this.ws.onclose = (e) => {
+                console.log('Notification WebSocket disconnected');
+                this.handleDisconnection();
+            };
+
+            this.ws.onerror = (e) => {
+                console.error('Notification WebSocket error:', e);
+                this.ws.close();
+            };
+
+            this.ws.onmessage = (e) => {
+                const data = JSON.parse(e.data);
+                if (data.type === 'notify_message') {
+                    updateRoomWithNewMessage(data);
+                }
+            };
+        }
+
+        handleDisconnection() {
+            if (this.reconnectAttempts < this.maxReconnectAttempts) {
+                console.log(`Reconnecting... Attempt ${this.reconnectAttempts + 1}`);
+                setTimeout(() => {
+                    this.reconnectAttempts++;
+                    this.connect();
+                    this.reconnectDelay = Math.min(this.reconnectDelay * 1.5, 10000);
+                }, this.reconnectDelay);
+            } else {
+                console.log('Max reconnection attempts reached');
+            }
+        }
+
+        send(message) {
+            if (this.ws.readyState === WebSocket.OPEN) {
+                this.ws.send(message);
+                return true;
+            }
+            return false;
+        }
+    }
+
+    const notificationWsManager = new NotificationWebSocketManager();
 
     // Keep track of unread messages count per room
     const unreadCounts = {};
-
-    notificationSocket.onmessage = function(e) {
-        const data = JSON.parse(e.data);
-        if (data.type === 'notify_message') {
-            updateRoomWithNewMessage(data);
-        }
-    };
 
     function updateRoomWithNewMessage(data) {
         const roomElement = document.querySelector(`[data-room-id="${data.room_id}"]`);
@@ -101,7 +150,7 @@
             let unreadBadge = roomElement.querySelector('.unread-badge');
             if (!unreadBadge) {
                 unreadBadge = document.createElement('span');
-                unreadBadge.className = 'unread-badge bg-green-500 text-white rounded-full px-2 py-1 text-xs';
+                unreadBadge.className = 'unread-badge bg-green-500 text-white rounded-full px-2 py-1 text-xs flex-shrink-0';
                 roomElement.querySelector('.room-info').appendChild(unreadBadge);
             }
             

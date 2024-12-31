@@ -146,96 +146,95 @@
 {% block extra_js %}
 {{ block.super }}
 <script>
-    const roomId = {{ room.id }};
-    const chatSocket = new WebSocket(
-        'ws://' + window.location.host + '/ws/chat/' + roomId + '/'
-    );
+    class WebSocketManager {
+        constructor(roomId) {
+            this.roomId = roomId;
+            this.reconnectAttempts = 0;
+            this.maxReconnectAttempts = 5;
+            this.reconnectDelay = 2000;
+            this.connect();
+        }
 
+        connect() {
+            this.ws = new WebSocket(
+                'ws://' + window.location.host + '/ws/chat/' + this.roomId + '/'
+            );
+
+            this.ws.onopen = () => {
+                console.log('WebSocket connected');
+                this.reconnectAttempts = 0;
+                this.reconnectDelay = 2000;
+                messageInput.focus();
+            };
+
+            this.ws.onclose = (e) => {
+                console.log('WebSocket disconnected');
+                this.handleDisconnection();
+            };
+
+            this.ws.onerror = (e) => {
+                console.error('WebSocket error:', e);
+                this.ws.close();
+            };
+
+            this.ws.onmessage = (e) => {
+                const data = JSON.parse(e.data);
+                if (data.type === 'chat_message') {
+                    appendMessage(data);
+                } else if (data.type === 'status_update') {
+                    updateMessageStatus(data);
+                }
+            };
+        }
+
+        handleDisconnection() {
+            if (this.reconnectAttempts < this.maxReconnectAttempts) {
+                console.log(`Reconnecting... Attempt ${this.reconnectAttempts + 1}`);
+                setTimeout(() => {
+                    this.reconnectAttempts++;
+                    this.connect();
+                    this.reconnectDelay = Math.min(this.reconnectDelay * 1.5, 10000);
+                }, this.reconnectDelay);
+            } else {
+                console.log('Max reconnection attempts reached');
+                alert('Connection lost. Please refresh the page.');
+            }
+        }
+
+        send(message) {
+            if (this.ws.readyState === WebSocket.OPEN) {
+                this.ws.send(message);
+                return true;
+            }
+            return false;
+        }
+
+        isConnected() {
+            return this.ws.readyState === WebSocket.OPEN;
+        }
+    }
+
+    const roomId = {{ room.id }};
     const messageContainer = document.getElementById('chat-messages');
     const messageForm = document.getElementById('chat-form');
     const messageInput = document.getElementById('chat-message-input');
 
+    // Initialize WebSocket manager
+    const wsManager = new WebSocketManager(roomId);
+
     // Scroll to bottom on load
     messageContainer.scrollTop = messageContainer.scrollHeight;
 
-    chatSocket.onmessage = function(e) {
-        const data = JSON.parse(e.data);
-        
-        if (data.type === 'chat_message') {
-            appendMessage(data);
-        } else if (data.type === 'status_update') {
-            updateMessageStatus(data);
-        }
-    };
-
-    chatSocket.onopen = function(e) {
-        console.log('WebSocket connection established');
-        // You could add online status indicator here
-    };
-
-    chatSocket.onclose = function(e) {
-        console.log('WebSocket connection closed');
-        // You could add offline status indicator here
-        
-        // Optionally, try to reconnect
-        setTimeout(function() {
-            console.log('Attempting to reconnect...');
-            chatSocket = new WebSocket(
-                'ws://' + window.location.host + '/ws/chat/' + roomId + '/'
-            );
-        }, 3000);
-    };
-
-    // Function to mark messages as read when they become visible
-    function setupMessageObserver() {
-        const observer = new IntersectionObserver((entries) => {
-            entries.forEach(entry => {
-                if (entry.isIntersecting) {
-                    const messageDiv = entry.target;
-                    const messageId = messageDiv.dataset.messageId;
-                    const isSender = messageDiv.dataset.sender === '{{ user.id }}';
-                    const isUnread = !messageDiv.classList.contains('message-read');
-                    
-                    // Only mark as read if we're not the sender and message is unread
-                    if (messageId && !isSender && isUnread) {
-                        chatSocket.send(JSON.stringify({
-                            'type': 'status_update',
-                            'message_id': messageId,
-                            'status': 'read'
-                        }));
-                        // Mark as read locally
-                        messageDiv.classList.add('message-read');
-                        // Remove from observer after marking as read
-                        observer.unobserve(messageDiv);
-                    }
-                }
-            });
-        }, {
-            threshold: 0.5 // Message is at least 50% visible
-        });
-
-        // Only observe unread messages that we didn't send
-        document.querySelectorAll('.message-container').forEach(messageDiv => {
-            const isSender = messageDiv.dataset.sender === '{{ user.id }}';
-            const isUnread = !messageDiv.classList.contains('message-read');
-            if (!isSender && isUnread) {
-                observer.observe(messageDiv);
-            }
-        });
-
-        return observer;
-    }
-
-    // Update the message HTML structure
+    // Function to append messages
     function appendMessage(data) {
         const isOwnMessage = data.sender_id === {{ user.id }};
         const messageDiv = document.createElement('div');
         messageDiv.className = `flex ${isOwnMessage ? 'justify-end' : ''} mb-4 message-container`;
         messageDiv.dataset.messageId = data.message_id;
         messageDiv.dataset.sender = data.sender_id;
-        
+
         const senderInitial = isOwnMessage ? '{{ user.username|first|upper }}' : data.sender_name[0].toUpperCase();
-        
+
         messageDiv.innerHTML = `
             ${!isOwnMessage ? `
             <div class="flex-none flex flex-col items-center mr-2">
@@ -269,7 +268,7 @@
             </div>
             ` : ''}
         `;
-        
+
         // Append at the bottom of the container
         messageContainer.appendChild(messageDiv);
         
@@ -277,31 +276,31 @@
         messageDiv.scrollIntoView({ behavior: 'smooth', block: 'end' });
 
         // Mark as delivered if we're receiving the message and we're online
-        if (!isOwnMessage && chatSocket.readyState === WebSocket.OPEN) {
-            chatSocket.send(JSON.stringify({
+        if (!isOwnMessage && wsManager.isConnected()) {
+            wsManager.send(JSON.stringify({
                 'type': 'status_update',
                 'message_id': data.message_id,
                 'status': 'delivered'
             }));
-            // Start observing the new message for read status
-            messageObserver.observe(messageDiv);
         }
     }
 
-    // Initialize the observer
-    const messageObserver = setupMessageObserver();
-
+    // Message form submission
     messageForm.addEventListener('submit', function(e) {
         e.preventDefault();
         const message = messageInput.value.trim();
         if (message) {
-            chatSocket.send(JSON.stringify({
+            const messageData = JSON.stringify({
                 'type': 'message',
                 'message': message,
                 'sender_name': '{{ user.username }}'
-            }));
-            messageInput.value = '';
-            messageInput.focus();
+            });
+            if (wsManager.send(messageData)) {
+                messageInput.value = '';
+                messageInput.focus();
+            } else {
+                alert('Unable to send message. Reconnecting...');
+            }
         }
     });
 
