@@ -39,6 +39,12 @@ class Room(QuxModel):
     def __str__(self):
         return self.get_room_name()
 
+    def get_other_participant(self):
+        """Get the other participant in a private chat"""
+        if self.chat_type == ChatType.PRIVATE:
+            return self.participants.exclude(id=self.creator.id).first()
+        return None
+
 
 class Message(QuxModel):
     room = models.ForeignKey(Room, on_delete=models.CASCADE, related_name="messages")

@@ -7,6 +7,51 @@
     <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     {% block extra_css %}{% endblock %}
+    <style>
+        /* Custom scrollbar */
+        ::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: #f1f1f1;
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: #c1c1c1;
+            border-radius: 3px;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: #a8a8a8;
+        }
+
+        /* Smooth transitions */
+        .transition-all {
+            transition: all 0.2s ease-in-out;
+        }
+
+        /* Chat list hover effects */
+        .chat-item:hover {
+            transform: translateX(4px);
+        }
+
+        /* Message status icons */
+        .message-status i {
+            transition: all 0.2s ease-in-out;
+        }
+
+        /* Typing indicator animation */
+        @keyframes typing {
+            0% { opacity: 0.4; }
+            50% { opacity: 1; }
+            100% { opacity: 0.4; }
+        }
+
+        .typing-indicator span {
+            animation: typing 1s infinite;
+        }
+    </style>
 </head>
 <body class="h-full flex flex-col">
     <nav class="bg-green-600 p-4 flex-none">

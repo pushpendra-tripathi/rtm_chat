@@ -1,6 +1,6 @@
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.core.exceptions import PermissionDenied
-from django.db.models import Max, Prefetch, Q
+from django.db.models import Count, Max, Prefetch, Q
 from django.shortcuts import get_object_or_404, redirect
 from django.urls import reverse_lazy
 from django.views.generic import CreateView, DetailView, ListView
@@ -17,7 +17,25 @@ class RoomListView(LoginRequiredMixin, ListView):
     def get_queryset(self):
         return (
             Room.objects.filter(participants=self.request.user)
-            .annotate(last_message_time=Max("messages__dtm_created"))
+            .annotate(
+                last_message_time=Max("messages__dtm_created"),
+                unread_count=Count(
+                    "messages",
+                    filter=Q(
+                        messages__receipts__user=self.request.user,
+                        messages__receipts__status=MessageStatus.SENT,
+                    ),
+                ),
+                participant_count=Count("participants", distinct=True),
+            )
+            .prefetch_related(
+                Prefetch(
+                    "messages",
+                    queryset=Message.objects.order_by("-dtm_created"),
+                    to_attr="recent_messages",
+                ),
+                "participants",
+            )
             .order_by("-last_message_time")
         )
 
